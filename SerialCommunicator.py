@@ -3,6 +3,7 @@ import time
 
 import serial
 import serial.tools.list_ports
+import serial.tools.list_ports_common
 
 
 class SerialCommunicator:
@@ -12,15 +13,29 @@ class SerialCommunicator:
 
     @staticmethod
     def list_serial_ports():
-        # 列出可用的串口
+        """列出可用的串口"""
         ports = serial.tools.list_ports.comports()
         if not ports:
             print("没有可用的串口")
-            return None
+        else:
+            print("可用串口：")
+            for i, port in enumerate(ports):
+                print(f"{i + 1}. {port.device} - {port.description}")
+        return ports
 
-        print("可用串口：")
-        for i, port in enumerate(ports):
-            print(f"{i + 1}. {port.device} - {port.description}")
+    @staticmethod
+    def prompt_serial_ports(
+        ports: list[serial.tools.list_ports_common.ListPortInfo] | None = None,
+    ):
+        """在控制台列出可用的串口，并返回用户选择的串口"""
+        if ports is None:
+            ports = SerialCommunicator.list_serial_ports()
+            if not ports:
+                return None
+        else:
+            print("可用串口：")
+            for i, port in enumerate(ports):
+                print(f"{i + 1}. {port.device} - {port.description}")
 
         choice = int(input("请输入串口编号：")) - 1
         if 0 <= choice < len(ports):
@@ -30,9 +45,10 @@ class SerialCommunicator:
             return None
 
     def connect(self, port: str | None = None):
+        """连接到串口并返回连接状态，若传入的串口参数为空，则在控制台列出可用的串口并由用户选择"""
         if port is None:
             # 连接到选定的串口
-            port = self.list_serial_ports()
+            port = self.prompt_serial_ports()
             if port is None:
                 return False
 
@@ -54,13 +70,13 @@ class SerialCommunicator:
             return False
 
     def disconnect(self):
-        # 断开串口连接
+        """断开串口连接"""
         if self.serial:
             self.serial.close()
             print("串口已关闭")
 
     def receive_response(self, timeout: float = 1.0):
-        # 接收串口响应
+        """按行阻塞并等待串口响应，返回响应字符串"""
         response = b""
         start_time = time.time()
         while time.time() - start_time < timeout:
@@ -81,7 +97,7 @@ class SerialCommunicator:
         y: float,
         z: float,
     ):
-        # 计算并返回数据包
+        """计算并返回数据包"""
         first_byte = 0
         if valid_op:
             first_byte |= 0x80
@@ -120,6 +136,7 @@ class SerialCommunicator:
         deltaY: bool = False,
         deltaZ: bool = False,
     ):
+        """尝试发送命令并接收响应"""
         # 发送命令并接收响应
         if not valid_op:
             packet = self.calculate_packet(False, False, False, False, 0, 0, 0)
@@ -153,7 +170,12 @@ class SerialCommunicator:
             )
 
         print("\n发送数据包:", packet.hex())
-        self.serial.write(packet)
+
+        try:
+            self.serial.write(packet)
+        except serial.SerialException as e:
+            print(f"串口通信错误: {e}")
+            return None, None
 
         print("等待第一个响应...")
         first_response = self.receive_response()
