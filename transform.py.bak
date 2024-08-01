@@ -1,0 +1,86 @@
+import numpy as np
+
+# 新的对应点数据
+robot_points = np.array(
+    [
+        [115, -80],  # 1
+        [115, 72],  # 2
+        [242, -84],  # 3
+        [245, 92],  # 4
+        [195, 5],  # 5
+        [142, 6],  # 6
+        [142, 31],  # 7
+        [223, 45],  # 8
+    ]
+)
+
+camera_points = np.array(
+    [
+        [108, 124],  # 1
+        [370, 122],  # 2
+        [110, 294],  # 3
+        [372, 288],  # 4
+        [234, 208],  # 5
+        [244, 166],  # 6
+        [290, 162],  # 7
+        [296, 266],  # 8
+    ]
+)
+
+
+# 计算变换矩阵
+def calculate_transform_matrix(src_points, dst_points):
+    src = np.array(src_points, dtype=np.float32)
+    dst = np.array(dst_points, dtype=np.float32)
+    src = np.hstack((src, np.ones((src.shape[0], 1))))
+    dst = np.hstack((dst, np.ones((dst.shape[0], 1))))
+    matrix, _ = np.linalg.lstsq(src, dst, rcond=None)[:2]
+    return matrix.T
+
+
+# 计算机械臂到摄像头的变换矩阵
+robot_to_camera_matrix = calculate_transform_matrix(robot_points, camera_points)
+
+# 计算摄像头到机械臂的变换矩阵
+camera_to_robot_matrix = calculate_transform_matrix(camera_points, robot_points)
+
+
+def robot_to_camera(robot_x, robot_y):
+    """
+    将机械臂坐标转换为摄像头坐标
+
+    :param robot_x: 机械臂坐标系中的 x 坐标
+    :param robot_y: 机械臂坐标系中的 y 坐标
+    :return: 摄像头坐标系中的 (x, y) 坐标
+    """
+    point = np.array([robot_x, robot_y, 1])
+    camera_point = np.dot(robot_to_camera_matrix, point)
+    return round(camera_point[0]), round(camera_point[1])
+
+
+def camera_to_robot(camera_x, camera_y):
+    """
+    将摄像头坐标转换为机械臂坐标
+
+    :param camera_x: 摄像头坐标系中的 x 坐标
+    :param camera_y: 摄像头坐标系中的 y 坐标
+    :return: 机械臂坐标系中的 (x, y) 坐标
+    """
+    point = np.array([camera_x, camera_y, 1])
+    robot_point = np.dot(camera_to_robot_matrix, point)
+    return round(robot_point[0]), round(robot_point[1])
+
+
+if __name__ == "__main__":
+    # 测试函数
+    print("Testing robot_to_camera function:")
+    for robot, camera in zip(robot_points, camera_points):
+        print(
+            f"Robot {tuple(robot)} to Camera: {robot_to_camera(*robot)}, Expected: {tuple(camera)}"
+        )
+
+    print("\nTesting camera_to_robot function:")
+    for camera, robot in zip(camera_points, robot_points):
+        print(
+            f"Camera {tuple(camera)} to Robot: {camera_to_robot(*camera)}, Expected: {tuple(robot)}"
+        )
